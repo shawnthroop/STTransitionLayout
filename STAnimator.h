@@ -17,27 +17,18 @@
 @end
 
 
-//@class STAnimator;
-//@protocol STAnimatorDelegate
-//
-//- (void)animatorDidBeginAnimating:(STAnimator *)animator;
-//- (void)animatorDidTick:(STAnimator *)animator withTimeDelta:(NSTimeInterval)timeDelta;
-//- (void)animatorDidEndAnimating:(STAnimator *)animator;
-//
-//@end
-
 
 typedef void(^STAnimationTick)(NSTimeInterval timeDelta);
 
 @interface STAnimator : NSObject
 
+@property (nonatomic, readonly) BOOL isAnimating;
+
 - (instancetype)initWithScreen:(UIScreen *)screen;
 
-- (void)animateAnimations:(NSArray *)animatables withAnimationTick:(STAnimationTick)tick completion:(void(^)())completion;
-//- (void)animateAnimations:(NSArray *)animatables withAnimationTick:(STAnimationTick)tick duration:(CGFloat)duration completion:(void (^)())completion;
-//
-//- (void)addAnimations:(NSArray *)animatables;
-//- (void)removeAnimations:(NSArray *)animatables;
+- (void)animateAnimations:(NSArray *)animations withAnimationTick:(STAnimationTick)tick completion:(void(^)())completion;
+
+- (void)cancelAllAnimations;
 
 @end
 

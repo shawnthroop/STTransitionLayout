@@ -8,13 +8,15 @@
 
 #import "STTransitionLayout.h"
 
-@interface STTransitionLayout () <STAnimatorDelegate>
+@interface STTransitionLayout ()
 
 @property (nonatomic) STAnimator *animator;
 @property (nonatomic) NSDictionary *animations;
 
 @property (nonatomic, readwrite) CGPoint fromContentOffset;
-@property (nonatomic) BOOL toContentOffsetInitialized;
+@property BOOL savedUserInteractionState;
+
+@property (nonatomic) CGSize transitionContentSize;
 
 @end
 
@@ -28,9 +30,9 @@ static NSString * const STCellKind = @"STCellKind";
 {
     if (self = [super initWithCurrentLayout:currentLayout nextLayout:newLayout]) {
         _fromContentOffset = currentLayout.collectionView.contentOffset;
-        
+        _toContentOffset = _fromContentOffset;
+        _transitionContentSize = currentLayout.collectionViewContentSize;
         _animator = [[STAnimator alloc] initWithScreen:currentLayout.collectionView.window.screen];
-        _animator.delegate = self;
     }
     
     return self;
@@ -42,35 +44,38 @@ static NSString * const STCellKind = @"STCellKind";
 {
     if (self.transitionProgress != transitionProgress) {
         super.transitionProgress = transitionProgress;
+
+        CGFloat t = transitionProgress;
+        CGFloat f = 1 - t;
         
-        if (self.toContentOffsetInitialized) {
-            
-            CGFloat t = self.transitionProgress;
-            CGFloat f = 1 - t;
-            CGPoint offset = CGPointMake(f * self.fromContentOffset.x + t * self.toContentOffset.x, f * self.fromContentOffset.y + t * self.toContentOffset.y);
-            
-            self.collectionView.contentOffset = offset;
-        }
+        // Update the offset
+        CGPoint offset = CGPointZero;
+        offset.x = f * self.fromContentOffset.x + t * self.toContentOffset.x;
+        offset.y = f * self.fromContentOffset.y + t * self.toContentOffset.y;
+        self.collectionView.contentOffset = offset;
+        
+        // Calculate the content size. We don't set directly, it will be asked for in -collectionViewContentSize
+        CGSize size = CGSizeZero;
+        size.width = f * self.currentLayout.collectionViewContentSize.width + t * self.nextLayout.collectionViewContentSize.width;
+        size.height = f * self.currentLayout.collectionViewContentSize.height + t * self.nextLayout.collectionViewContentSize.height;
+        self.transitionContentSize = size;
     }
 }
 
 
-- (void)setToContentOffset:(CGPoint)toContentOffset
-{
-    self.toContentOffsetInitialized = YES;
-    if (!CGPointEqualToPoint(_toContentOffset, toContentOffset)) {
-        _toContentOffset = toContentOffset;
-        [self invalidateLayout];
-    }
-}
+
+#pragma mark - STTransitionLayoutProtocol
 
 
 - (void)collectionViewDidCompleteTransition:(UICollectionView *)collectionView
 {
-    if (self.toContentOffsetInitialized) {
-        collectionView.contentOffset = self.toContentOffset;
-    }
+    collectionView.contentOffset = self.toContentOffset;
 }
+
+
+
+
+#pragma mark - UICollectionViewLayout (UISubclassingHooks)
 
 
 - (void)prepareLayout
@@ -103,29 +108,43 @@ static NSString * const STCellKind = @"STCellKind";
         [self.animator animateAnimations:self.animations.allValues withAnimationTick:^(NSTimeInterval timeDelta) {
             
             typeof(welf) strongSelf = welf;
-            CGFloat avgProgress = [[strongSelf.animations.allValues valueForKeyPath:@"@avg.progress"] floatValue];
-            strongSelf.transitionProgress = avgProgress;
-            
-            [strongSelf invalidateLayout];
+            if (strongSelf) {
+                // Grab the average progress of all animations still animating
+                CGFloat avgProgress = [[strongSelf.animations.allValues valueForKeyPath:@"@avg.progress"] floatValue];
+                strongSelf.transitionProgress = avgProgress;
+                
+                // Invalidate the layout to update the positions of the cells
+                [strongSelf invalidateLayout];
+            }
             
         } completion:^{
+            
             typeof(welf) strongSelf = welf;
-            [strongSelf.collectionView finishInteractiveTransition];
+            if (strongSelf) {
+                // Finish the interaction and restore the saved userInteractionEnabled property
+                [strongSelf.collectionView finishInteractiveTransition];
+                strongSelf.collectionView.userInteractionEnabled = strongSelf.savedUserInteractionState;
+            }
         }];
         
-//        [self.animator addAnimations:self.animations.allValues];
+        self.savedUserInteractionState = self.collectionView.userInteractionEnabled;
+        self.collectionView.userInteractionEnabled = NO;
     }
 }
 
 
+
+
 - (NSArray *)layoutAttributesForElementsInRect:(CGRect)rect
 {
-    rect = CGRectInset(rect, -100, -100);
-    
+    // Add some padding to the rect incase of spring animations
+    rect = CGRectInset(rect, -200, -200);
     NSMutableArray *poses = [NSMutableArray array];
     
     for (STLayoutAttributeAnimation *animation in self.animations.allValues) {
         UICollectionViewLayoutAttributes *pose = animation.attributes;
+        
+        // Only return the layout attributes within the rect
         CGRect intersection = CGRectIntersection(rect, pose.frame);
         if (!CGRectIsEmpty(intersection)) {
             [poses addObject:pose];
@@ -135,6 +154,9 @@ static NSString * const STCellKind = @"STCellKind";
     return poses;
 }
 
+
+
+
 - (UICollectionViewLayoutAttributes *)layoutAttributesForItemAtIndexPath:(NSIndexPath *)indexPath
 {
     NSString *key = [self keyForIndexPath:indexPath kind:STCellKind];
@@ -143,34 +165,114 @@ static NSString * const STCellKind = @"STCellKind";
     return animation.attributes;
 }
 
+
 - (CGSize)collectionViewContentSize
 {
-    return self.currentLayout.collectionViewContentSize;
-}
-
-
-#pragma mark - STAnimatorDelegate
-
-- (void)animatorDidBeginAnimating:(STAnimator *)animator
-{
-
+    return self.transitionContentSize;
 }
 
 
 
-- (void)animatorDidEndAnimating:(STAnimator *)animator
+
+
+- (void)setToContentOffset:(CGPoint)toContentOffset
 {
-//    [self.collectionView finishInteractiveTransition];
+    if (!CGPointEqualToPoint(_toContentOffset, toContentOffset)) {
+        _toContentOffset = toContentOffset;
+        [self invalidateLayout];
+    }
 }
 
 
-
-- (void)animatorDidTick:(STAnimator *)animator withTimeDelta:(NSTimeInterval)timeDelta
+- (void)setToContentOffsetForIndexPath:(NSIndexPath *)toIndexPath atScrollPosition:(UICollectionViewScrollPosition)position
 {
-//    CGFloat avgProgress = [[self.animations.allValues valueForKeyPath:@"@avg.progress"] floatValue];
-//    self.transitionProgress = avgProgress;
-//    
-//    [self invalidateLayout];
+    self.toContentOffset = [self finalContentOffsetForIndexPath:toIndexPath atScrollPosition:position];
+}
+
+
+- (CGPoint)finalContentOffsetForIndexPath:(NSIndexPath *)indexPath atScrollPosition:(UICollectionViewScrollPosition)position;
+{
+    if (!indexPath) {
+        return CGPointZero;
+    }
+    
+    CGFloat x = 0.0f;
+    CGFloat y = 0.0f;
+    
+    CGRect cellFrame = [self.nextLayout layoutAttributesForItemAtIndexPath:indexPath].frame;
+    CGFloat minLineSpace = 0.0f;
+    CGFloat minItemSpace = 0.0f;
+    
+    // Grab the flow layout spacing attributes
+    if ([self.nextLayout isKindOfClass:[UICollectionViewFlowLayout class]]) {
+        UICollectionViewFlowLayout *flow = (UICollectionViewFlowLayout *)self.nextLayout;
+        minLineSpace = flow.minimumLineSpacing;
+        minItemSpace = flow.minimumInteritemSpacing;
+    }
+
+    CGSize contentSize = self.nextLayout.collectionViewContentSize;
+    CGRect insetFrame = UIEdgeInsetsInsetRect(self.collectionView.frame, self.collectionView.contentInset);
+    
+    
+    // Vertical
+    if (contentSize.height > CGRectGetHeight(insetFrame)) {
+        CGFloat maxY = contentSize.height - CGRectGetHeight(insetFrame);
+        CGRect adjustedCellFrame = UIEdgeInsetsInsetRect(cellFrame, UIEdgeInsetsMake(-minLineSpace, 0, 0, 0));
+        
+        switch (position) {
+            case UICollectionViewScrollPositionLeft:
+            case UICollectionViewScrollPositionTop: {
+                y = adjustedCellFrame.origin.y;
+                break;
+            }
+            case UICollectionViewScrollPositionRight:
+            case UICollectionViewScrollPositionBottom: {
+                y = adjustedCellFrame.origin.y - (CGRectGetHeight(insetFrame) - CGRectGetHeight(adjustedCellFrame) - minLineSpace);
+                break;
+            }
+            case UICollectionViewScrollPositionCenteredHorizontally:
+            case UICollectionViewScrollPositionCenteredVertically: {
+                y = adjustedCellFrame.origin.y - ((CGRectGetHeight(insetFrame) / 2) - (CGRectGetHeight(adjustedCellFrame) / 2) - (minLineSpace / 2));
+                break;
+            }
+                
+            default:
+                break;
+        }
+        
+        y = MAX(0, MIN(y, maxY));
+    }
+    
+    if (contentSize.width > CGRectGetWidth(insetFrame)) {
+        CGFloat maxX = contentSize.width - CGRectGetWidth(insetFrame);
+        CGRect adjustedCellFrame = UIEdgeInsetsInsetRect(cellFrame, UIEdgeInsetsMake(0, -minItemSpace, 0, 0));
+        
+        switch (position) {
+            case UICollectionViewScrollPositionTop:
+            case UICollectionViewScrollPositionLeft: {
+                x = adjustedCellFrame.origin.x;
+                break;
+            }
+            case UICollectionViewScrollPositionRight:
+            case UICollectionViewScrollPositionBottom: {
+                x = adjustedCellFrame.origin.x - (CGRectGetWidth(insetFrame) - CGRectGetWidth(adjustedCellFrame) - minItemSpace);
+                break;
+            }
+            case UICollectionViewScrollPositionCenteredVertically:
+            case UICollectionViewScrollPositionCenteredHorizontally:
+            {
+                x = adjustedCellFrame.origin.x - ((CGRectGetWidth(insetFrame) / 2) - (CGRectGetWidth(adjustedCellFrame) / 2) - (minItemSpace / 2));
+                break;
+            }
+                
+            default:
+                break;
+        }
+        
+        x = MAX(0, MIN(x, maxX));
+    }
+    
+    return CGPointMake(x - self.collectionView.contentInset.left, y - self.collectionView.contentInset.top);
 }
 
 
@@ -231,7 +333,7 @@ static NSString * const STCellKind = @"STCellKind";
     CGFloat t = self.progress;
     CGFloat f = 1 - t;
     
-    CGRect bounds = CGRectZero;
+    CGRect bounds = self.attributes.bounds;
     bounds.size.width = f * self.initialAttributes.bounds.size.width + t * self.targetAttributes.bounds.size.width;
     bounds.size.height = f * self.initialAttributes.bounds.size.height + t * self.targetAttributes.bounds.size.height;
     self.attributes.bounds = bounds;

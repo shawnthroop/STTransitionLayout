@@ -81,6 +81,8 @@
     self.animations = [self.animations objectsPassingTest:^BOOL(id<STAnimatable> animation, BOOL *stop) {
         return ![animation isFinished];
     }];
+    
+    
 
     if (self.animations.count == 0) {
         self.displayLink.paused = YES;
@@ -92,6 +94,20 @@
         self.animations = nil;
         self.duration = nil;
     }
+}
+
+
+- (void)cancelAllAnimations
+{
+    self.displayLink.paused = YES;
+    self.animations = nil;
+    self.completionBlock = nil;
+    self.tick = nil;
+}
+
+- (BOOL)isAnimating
+{
+    return !self.displayLink.isPaused && self.animations.count > 0;
 }
 
 @end
@@ -162,7 +178,7 @@
     CGFloat speed = STPointLength(self.velocity);
     CGFloat distanceToGoal = STPointLength(STPointSubtract(self.targetPoint, self.currentPoint));
     
-    if (speed < 10 && fabsf(distanceToGoal) < 1) {
+    if (speed < 5 && fabs(distanceToGoal) < 0.5) {
         self.currentPoint = self.targetPoint;
         self.isFinished = YES;
     }
@@ -170,6 +186,35 @@
     CGFloat distanceFromInitial = STPointLength(STPointSubtract(self.currentPoint, self.initialPoint));
     CGFloat totalDistance = STPointLength(STPointSubtract(self.targetPoint, self.initialPoint));
     self.progress = distanceFromInitial / totalDistance;
+}
+
+- (BOOL)isEqual:(id)object
+{
+    if (self == object) {
+        return YES;
+    }
+    
+    if (![object isKindOfClass:[STSpringAnimation class]]) {
+        return NO;
+    }
+    
+    STSpringAnimation *other = (STSpringAnimation *)object;
+    
+    if (CGPointEqualToPoint(self.currentPoint, other.currentPoint) && CGPointEqualToPoint(self.targetPoint, other.targetPoint) && CGPointEqualToPoint(self.initialPoint, other.initialPoint)) {
+        
+        if (self.isFinished == other.isFinished) {
+            if (CGPointEqualToPoint(self.velocity, other.velocity) && self.friction == other.friction && self.springDamping == other.springDamping) {
+                return YES;
+            }
+        }
+    }
+    
+    return NO;
+}
+
+- (NSUInteger)hash
+{
+    return STPointHash(self.initialPoint) ^ STPointHash(self.targetPoint) ^ STPointHash(self.currentPoint) ^ STPointHash(self.velocity) ^ self.isFinished ^ STPointHash(self.velocity) ^ [NSNumber numberWithFloat:self.friction].hash ^ [NSNumber numberWithFloat:self.springDamping].hash;
 }
 
 
@@ -191,6 +236,11 @@ static CGPoint STPointDivide(CGPoint point, CGFloat divisor) {
 
 static CGFloat STPointLength(CGPoint point) {
     return (CGFloat)sqrt(point.x * point.x + point.y * point.y);
+}
+
+static NSUInteger STPointHash(CGPoint point) {
+    return [@(point.x) hash] ^ [@(point.y) hash];
+//    return [NSValue valueWithCGPoint:point].hash;
 }
 
 @end

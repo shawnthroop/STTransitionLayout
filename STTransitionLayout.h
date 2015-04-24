@@ -43,4 +43,7 @@ typedef STLayoutAttributeAnimation *(^STLayoutAttributeAnimationBlock)(UICollect
 
 - (instancetype)initWithCurrentLayout:(UICollectionViewLayout *)currentLayout nextLayout:(UICollectionViewLayout *)newLayout;
 
+- (void)setToContentOffsetForIndexPath:(NSIndexPath *)toIndexPath atScrollPosition:(UICollectionViewScrollPosition)position;
+- (CGPoint)finalContentOffsetForIndexPath:(NSIndexPath *)indexPath atScrollPosition:(UICollectionViewScrollPosition)position;
+
 @end
