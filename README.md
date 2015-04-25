@@ -20,7 +20,7 @@ When creating this layout object, provide animations via the `animationProvider`
     };
 
     return layout;
-}*
+}
 ```
 
 This is the point where you can customize the spring damping, friction, and even the initial velocity of animations.
