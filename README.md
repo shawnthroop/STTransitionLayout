@@ -40,8 +40,6 @@ In addition to animating cells STTransitionLayout objects also transition the `c
 
 ## Content Offset
 
-The UICollectionViewTransitionLayout object returned by `transitionToCollectionViewLayout:completion:` is that which you provide in `collectionView:transitionLayoutForOldLayout:newLayout:`. Use this object to set a specific content offset for the transition to end at.
-
 Say you want the transition to end with a certain cell positioned in the center of your collection view:
 
 
