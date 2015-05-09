@@ -11,7 +11,7 @@
 @interface STTransitionLayout ()
 
 @property (nonatomic) STAnimator *animator;
-@property (nonatomic) NSDictionary *animations;
+@property (nonatomic, readwrite) NSDictionary *animations;
 
 @property (nonatomic, readwrite) CGPoint fromContentOffset;
 @property BOOL savedUserInteractionState;
@@ -292,12 +292,6 @@ static NSString * const STCellKind = @"STCellKind";
 
 
 
-@interface STLayoutAttributeAnimation ()
-
-@property (nonatomic, readonly) UICollectionViewLayoutAttributes *initialAttributes;
-@property (nonatomic, readonly) UICollectionViewLayoutAttributes *targetAttributes;
-
-@end
 
 @implementation STLayoutAttributeAnimation
 
@@ -333,20 +327,24 @@ static NSString * const STCellKind = @"STCellKind";
     CGFloat t = self.progress;
     CGFloat f = 1 - t;
     
+    UICollectionViewLayoutAttributes *initialAttributes = self.initialAttributes;
+    UICollectionViewLayoutAttributes *targetAttributes = self.targetAttributes;
+
+    
     CGRect bounds = self.attributes.bounds;
-    bounds.size.width = f * self.initialAttributes.bounds.size.width + t * self.targetAttributes.bounds.size.width;
-    bounds.size.height = f * self.initialAttributes.bounds.size.height + t * self.targetAttributes.bounds.size.height;
+    bounds.size.width = f * initialAttributes.bounds.size.width + t * targetAttributes.bounds.size.width;
+    bounds.size.height = f * initialAttributes.bounds.size.height + t * targetAttributes.bounds.size.height;
     self.attributes.bounds = bounds;
     
     self.attributes.center = self.currentPoint;
     
     CGAffineTransform transform = CGAffineTransformIdentity;
-    transform.a = f * self.initialAttributes.transform.a + t * self.targetAttributes.transform.a;
-    transform.b = f * self.initialAttributes.transform.b + t * self.targetAttributes.transform.b;
-    transform.c = f * self.initialAttributes.transform.c + t * self.targetAttributes.transform.c;
-    transform.d = f * self.initialAttributes.transform.d + t * self.targetAttributes.transform.d;
-    transform.tx = f * self.initialAttributes.transform.tx + t * self.targetAttributes.transform.tx;
-    transform.ty = f * self.initialAttributes.transform.ty + t * self.targetAttributes.transform.ty;
+    transform.a = f * initialAttributes.transform.a + t * targetAttributes.transform.a;
+    transform.b = f * initialAttributes.transform.b + t * targetAttributes.transform.b;
+    transform.c = f * initialAttributes.transform.c + t * targetAttributes.transform.c;
+    transform.d = f * initialAttributes.transform.d + t * targetAttributes.transform.d;
+    transform.tx = f * initialAttributes.transform.tx + t * targetAttributes.transform.tx;
+    transform.ty = f * initialAttributes.transform.ty + t * targetAttributes.transform.ty;
     self.attributes.transform = transform;
 }
 

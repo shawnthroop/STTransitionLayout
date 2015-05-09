@@ -16,6 +16,9 @@
 @property (nonatomic, readonly) NSIndexPath *indexPath;
 @property (nonatomic, readonly) UICollectionViewLayoutAttributes *attributes;
 
+@property (nonatomic, readonly) id initialAttributes;
+@property (nonatomic, readonly) id targetAttributes;
+
 - (instancetype)initWithInitialAttributes:(UICollectionViewLayoutAttributes *)initial target:(UICollectionViewLayoutAttributes *)target NS_DESIGNATED_INITIALIZER;
 
 - (void)interpolatePose;
@@ -40,6 +43,7 @@ typedef STLayoutAttributeAnimation *(^STLayoutAttributeAnimationBlock)(UICollect
 @property (nonatomic) CGPoint toContentOffset;
 
 @property (nonatomic, copy) STLayoutAttributeAnimationBlock animationProvider;
+@property (nonatomic, readonly) NSDictionary *animations;
 
 - (instancetype)initWithCurrentLayout:(UICollectionViewLayout *)currentLayout nextLayout:(UICollectionViewLayout *)newLayout;
 
